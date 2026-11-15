@@ -1,0 +1,10 @@
+# 本地运行产物
+data/
+backend/.venv/
+frontend/node_modules/
+frontend/dist/
+
+# 测试与缓存
+.pytest_cache/
+__pycache__/
+*.pyc

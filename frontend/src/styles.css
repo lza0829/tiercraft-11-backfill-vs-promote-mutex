@@ -274,6 +274,24 @@ tr:hover td { background: #f0f5fa; }
 .muted { color: var(--muted); }
 .ok { color: var(--ok); font-weight: 600; }
 .warn { color: var(--warn); font-weight: 600; }
+.fail { color: #b91c1c; font-weight: 600; }
+.flight { color: var(--accent); font-weight: 700; }
+.flight-banner {
+  margin: 8px 0 14px;
+  padding: 10px 12px;
+  background: #e7eef8;
+  border-left: 3px solid var(--accent);
+  color: var(--accent);
+}
+.day-input {
+  font: inherit;
+  padding: 7px 10px;
+  border-radius: 2px;
+  border: 1px solid var(--line);
+  background: #fff;
+  color: var(--ink);
+  width: 150px;
+}
 .err {
   color: #b91c1c;
   margin: 8px 0 14px;

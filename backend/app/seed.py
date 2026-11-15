@@ -4,6 +4,7 @@ import json
 from pathlib import Path
 
 from app.db import FIXTURES_DIR, connect
+from app.locks import LOCK_LABELS, recover_stale_locks
 
 
 SCHEMA = """
@@ -12,7 +13,9 @@ CREATE TABLE IF NOT EXISTS domains (
   name TEXT NOT NULL UNIQUE,
   biz_key TEXT NOT NULL,
   fixture_file TEXT NOT NULL,
-  description TEXT NOT NULL DEFAULT ''
+  description TEXT NOT NULL DEFAULT '',
+  available INTEGER NOT NULL DEFAULT 1,
+  unavailable_reason TEXT NOT NULL DEFAULT ''
 );
 
 CREATE TABLE IF NOT EXISTS layer_paste (
@@ -62,8 +65,24 @@ CREATE TABLE IF NOT EXISTS layer_jobs (
   in_count INTEGER NOT NULL DEFAULT 0,
   out_count INTEGER NOT NULL DEFAULT 0,
   drop_count INTEGER NOT NULL DEFAULT 0,
+  conflict_holder_type TEXT NOT NULL DEFAULT '',
+  conflict_holder_job_id INTEGER,
+  conflict_holder_label TEXT NOT NULL DEFAULT '',
+  target_biz_day TEXT NOT NULL DEFAULT '',
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at TEXT,
+  finished_at TEXT,
   FOREIGN KEY(domain_id) REFERENCES domains(id)
+);
+
+CREATE TABLE IF NOT EXISTS domain_locks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  domain_id INTEGER NOT NULL UNIQUE,
+  lock_type TEXT NOT NULL,
+  job_id INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  FOREIGN KEY(domain_id) REFERENCES domains(id),
+  FOREIGN KEY(job_id) REFERENCES layer_jobs(id)
 );
 
 CREATE TABLE IF NOT EXISTS reconcile_reports (
@@ -82,13 +101,46 @@ CREATE TABLE IF NOT EXISTS reconcile_reports (
 """
 
 
+def _columns(conn, table: str) -> set[str]:
+    return {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+
+def _add_column_if_missing(conn, table: str, column: str, ddl_type: str) -> None:
+    if column not in _columns(conn, table):
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl_type}")
+
+
+def _migrate(conn) -> None:
+    """对旧库做幂等补列，保证升级后可启动。"""
+    job_cols = {
+        "conflict_holder_type": "TEXT NOT NULL DEFAULT ''",
+        "conflict_holder_job_id": "INTEGER",
+        "conflict_holder_label": "TEXT NOT NULL DEFAULT ''",
+        "target_biz_day": "TEXT NOT NULL DEFAULT ''",
+        "started_at": "TEXT",
+        "finished_at": "TEXT",
+    }
+    for col, ddl in job_cols.items():
+        _add_column_if_missing(conn, "layer_jobs", col, ddl)
+    _add_column_if_missing(conn, "domains", "available", "INTEGER NOT NULL DEFAULT 1")
+    _add_column_if_missing(conn, "domains", "unavailable_reason", "TEXT NOT NULL DEFAULT ''")
+    # 旧库里历史任务状态保持原值，但需要能被列表正常展示
+    conn.execute(
+        "UPDATE layer_jobs SET finished_at=COALESCE(finished_at, created_at) "
+        "WHERE status IN ('成功', '失败') AND finished_at IS NULL"
+    )
+
+
 def init_db() -> None:
     conn = connect()
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         row = conn.execute("SELECT COUNT(*) AS c FROM domains").fetchone()
         if int(row["c"]) == 0:
             _seed_domain(conn)
+        # 启动时回收进程中断留下的残留在途锁
+        recover_stale_locks(conn)
         conn.commit()
     finally:
         conn.close()

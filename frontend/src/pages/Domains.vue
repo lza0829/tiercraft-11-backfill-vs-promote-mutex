@@ -12,6 +12,12 @@ onMounted(async () => {
     err.value = String(e.message || e)
   }
 })
+
+function availability(d) {
+  if (!d.available) return { text: '不可用待重跑', cls: 'fail' }
+  if (d.in_flight_lock) return { text: '在途', cls: 'flight' }
+  return { text: '可用', cls: 'ok' }
+}
 </script>
 <template>
   <div>
@@ -21,7 +27,10 @@ onMounted(async () => {
     <div class="panel">
       <table>
         <thead>
-          <tr><th>编号</th><th>名称</th><th>业务键</th><th>夹具文件</th><th>说明</th></tr>
+          <tr>
+            <th>编号</th><th>名称</th><th>业务键</th><th>夹具文件</th>
+            <th>可用性</th><th>在途类型</th><th>对齐状态</th><th>不可用原因 / 说明</th>
+          </tr>
         </thead>
         <tbody>
           <tr v-for="d in rows" :key="d.id">
@@ -29,7 +38,10 @@ onMounted(async () => {
             <td>{{ d.name }}</td>
             <td>{{ d.biz_key }}</td>
             <td>{{ d.fixture_file }}</td>
-            <td>{{ d.description }}</td>
+            <td :class="availability(d).cls">{{ availability(d).text }}</td>
+            <td>{{ d.in_flight_lock || '—' }}</td>
+            <td :class="d.alignment === '已对齐' ? 'ok' : 'warn'">{{ d.alignment }}</td>
+            <td>{{ d.unavailable_reason || d.description }}</td>
           </tr>
         </tbody>
       </table>

@@ -51,12 +51,28 @@ const meter = computed(() => {
       </div>
 
       <div class="panel">
+        <h3>在途任务（在途锁，刷新后仍在）</h3>
+        <table v-if="data.在途任务.length">
+          <thead><tr><th>任务编号</th><th>主题域</th><th>在途类型</th><th>开始时间</th></tr></thead>
+          <tbody>
+            <tr v-for="j in data.在途任务" :key="j.任务编号">
+              <td>{{ j.任务编号 }}</td><td>{{ j.主题域 }}</td>
+              <td class="flight">{{ j.在途类型 }}</td><td>{{ j.开始时间 }}</td>
+            </tr>
+          </tbody>
+        </table>
+        <p v-else class="muted">当前没有在途任务。</p>
+      </div>
+
+      <div class="panel">
         <h3>最近分层任务</h3>
         <table v-if="data.最近任务.length">
           <thead><tr><th>编号</th><th>步骤</th><th>状态</th><th>写入</th><th>剔除</th></tr></thead>
           <tbody>
             <tr v-for="j in data.最近任务" :key="j.编号">
-              <td>{{ j.编号 }}</td><td>{{ j.步骤 }}</td><td>{{ j.状态 }}</td><td>{{ j.写入 }}</td><td>{{ j.剔除 }}</td>
+              <td>{{ j.编号 }}</td><td>{{ j.步骤 }}</td>
+              <td :class="j.状态 === '成功' ? 'ok' : (j.状态 === '在途' ? 'flight' : 'warn')">{{ j.状态 }}</td>
+              <td>{{ j.写入 }}</td><td>{{ j.剔除 }}</td>
             </tr>
           </tbody>
         </table>
